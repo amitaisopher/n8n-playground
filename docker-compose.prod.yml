@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_prod}
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_prod}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  n8n-network:
+    driver: bridge
