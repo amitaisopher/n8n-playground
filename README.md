@@ -33,6 +33,7 @@ This project provides a production-ready setup for running n8n with:
 
 ```
 n8n-playground/
+├── Dockerfile                  # Custom n8n image with Python & Node modules
 ├── docker-compose.dev.yml      # Complete development environment
 ├── docker-compose.prod.yml     # Complete production environment
 ├── .env.example                # Example environment variables
@@ -42,6 +43,7 @@ n8n-playground/
 ├── data/                       # Data directory (created on first run)
 │   ├── n8n/                    # n8n workflows, credentials, settings
 │   └── postgres/               # PostgreSQL database files
+├── CHANGELOG.md                # Project changelog
 └── README.md                   # This file
 ```
 
@@ -59,6 +61,85 @@ Verify your installation:
 ```bash
 docker --version
 docker compose version
+```
+
+## 🛠️ Custom Modules
+
+This setup includes a custom Dockerfile that extends the official n8n image with pre-installed Python and Node.js modules for use in n8n Code nodes.
+
+### Pre-installed Python Packages
+
+- `requests` - HTTP library
+- `pandas` - Data manipulation and analysis
+- `numpy` - Numerical computing
+- `beautifulsoup4` - Web scraping
+- `lxml` - XML/HTML processing
+- `openpyxl` - Excel file handling
+- `python-dateutil` - Date/time utilities
+- `pytz` - Timezone support
+
+### Pre-installed Node.js Packages
+
+- `axios` - HTTP client
+- `lodash` - Utility functions
+- `moment` - Date/time manipulation
+- `uuid` - UUID generation
+- `csv-parse` - CSV parsing
+- `csv-stringify` - CSV generation
+
+### Adding Custom Modules
+
+To add more Python or Node.js packages:
+
+1. **Edit the Dockerfile**:
+   ```dockerfile
+   # Add Python packages
+   RUN pip3 install --no-cache-dir \
+       your-package-name \
+       another-package
+   
+   # Add Node.js packages
+   RUN npm install -g \
+       your-node-package \
+       another-node-package
+   ```
+
+2. **Rebuild the image**:
+   ```bash
+   # Development
+   docker compose -f docker-compose.dev.yml build
+   
+   # Production
+   docker compose -f docker-compose.prod.yml build
+   ```
+
+3. **Restart the containers**:
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+### Using Modules in n8n
+
+**Python Code Node**:
+```python
+import requests
+import pandas as pd
+
+# Your code here
+response = requests.get('https://api.example.com/data')
+df = pd.DataFrame(response.json())
+return df.to_dict('records')
+```
+
+**JavaScript Code Node**:
+```javascript
+const axios = require('axios');
+const _ = require('lodash');
+
+// Your code here
+const response = await axios.get('https://api.example.com/data');
+const filtered = _.filter(response.data, { active: true });
+return filtered;
 ```
 
 ## 🚀 Quick Start
@@ -95,18 +176,32 @@ openssl rand -hex 32
 # Update ALL values in .env.production (especially passwords, encryption key, and domain)
 ```
 
-### 3. Start n8n
+### 3. Build and Start n8n
 
 **Development environment**:
 
 ```bash
+# Build the custom n8n image
+docker compose -f docker-compose.dev.yml build
+
+# Start all services
 docker compose -f docker-compose.dev.yml up -d
+
+# View logs
+docker compose -f docker-compose.dev.yml logs -f
 ```
 
 **Production environment**:
 
 ```bash
+# Build the custom n8n image
+docker compose -f docker-compose.prod.yml build
+
+# Start all services
 docker compose -f docker-compose.prod.yml up -d
+
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
 ```
 
 ### 4. Access n8n
@@ -312,15 +407,23 @@ tar czf n8n_backup_$(date +%Y%m%d).tar.gz data/
 rsync -avz data/ backup/n8n_$(date +%Y%m%d)/
 ```
 
-### 2. Pull Latest Image
+### 2. Pull Latest Base Image
 
 ```bash
-docker compose -f docker-compose.dev.yml pull
-# or for production
-docker compose -f docker-compose.prod.yml pull
+docker pull docker.n8n.io/n8nio/n8n:latest
 ```
 
-### 3. Restart with New Image
+### 3. Rebuild Custom Image
+
+```bash
+# Development
+docker compose -f docker-compose.dev.yml build --no-cache
+
+# Production
+docker compose -f docker-compose.prod.yml build --no-cache
+```
+
+### 4. Restart with New Image
 
 ```bash
 # Development
@@ -332,11 +435,23 @@ docker compose -f docker-compose.prod.yml down
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### 4. Verify Update
+### 5. Verify Update
 
 ```bash
 docker compose -f docker-compose.dev.yml logs n8n | grep version
 ```
+
+## 🔄 Updating Custom Modules
+
+To add, remove, or update Python/Node.js packages:
+
+1. **Edit the Dockerfile** to modify the package lists
+
+2. **Rebuild and restart**:
+   ```bash
+   docker compose -f docker-compose.dev.yml build
+   docker compose -f docker-compose.dev.yml up -d
+   ```
 
 ## 💿 Backup and Restore
 
@@ -448,6 +563,9 @@ docker compose -f docker-compose.prod.yml up -d
 3. **Cannot access n8n**: Verify `WEBHOOK_URL` matches your actual URL
 4. **Workflows not executing**: Check encryption key is set correctly
 5. **Permission denied on data folders**: Run `sudo chown -R $(id -u):$(id -g) data/`
+6. **Module not found in Code node**: Rebuild the image with `docker compose -f docker-compose.dev.yml build --no-cache`
+7. **Python version issues**: Check version with `docker exec n8n-dev python --version`
+8. **Node.js package issues**: List installed packages with `docker exec n8n-dev npm list -g --depth=0`
 
 ## 🔒 Security Considerations
 
@@ -502,6 +620,9 @@ For production, consider adding:
 ## 📝 Quick Reference Commands
 
 ```bash
+# Build (first time or after Dockerfile changes)
+docker compose -f docker-compose.dev.yml build
+
 # Start (Development)
 docker compose -f docker-compose.dev.yml up -d
 
@@ -514,8 +635,10 @@ docker compose -f docker-compose.dev.yml down
 # View logs (specify environment)
 docker compose -f docker-compose.dev.yml logs -f
 
-# Update (specify environment)
-docker compose -f docker-compose.dev.yml pull && docker compose -f docker-compose.dev.yml up -d
+# Update (rebuild and restart)
+docker pull docker.n8n.io/n8nio/n8n:latest
+docker compose -f docker-compose.dev.yml build --no-cache
+docker compose -f docker-compose.dev.yml up -d
 
 # Backup data
 tar czf backup.tar.gz data/

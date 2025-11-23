@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: n8n-custom:prod
     container_name: n8n-prod
     restart: unless-stopped
     env_file:
