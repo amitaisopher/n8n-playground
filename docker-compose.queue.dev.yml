@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres-queue-dev
+    restart: unless-stopped
+    env_file:
+      - .env.queue.development
+    environment:
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_queue_dev}
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_queue_dev}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-n8n_queue_dev_password}
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Queue Management
+  redis:
+    image: redis:7-alpine
+    container_name: n8n-redis-queue-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # n8n Main Instance (handles webhooks, timers, UI)
+  n8n-main:
+    image: n8nio/n8n:1.121.2
+    container_name: n8n-main-queue-dev
+    restart: unless-stopped
+    env_file:
+      - .env.queue.development
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # n8n Worker 1
+  n8n-worker-1:
+    image: n8nio/n8n:1.121.2
+    container_name: n8n-worker-1-queue-dev
+    restart: unless-stopped
+    command: worker
+    env_file:
+      - .env.queue.development
+    environment:
+      - QUEUE_HEALTH_CHECK_ACTIVE=true
+      - QUEUE_HEALTH_CHECK_PORT=5680
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      n8n-main:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # n8n Worker 2
+  n8n-worker-2:
+    image: n8nio/n8n:1.121.2
+    container_name: n8n-worker-2-queue-dev
+    restart: unless-stopped
+    command: worker
+    env_file:
+      - .env.queue.development
+    environment:
+      - QUEUE_HEALTH_CHECK_ACTIVE=true
+      - QUEUE_HEALTH_CHECK_PORT=5680
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      n8n-main:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+networks:
+  n8n-network:
+    driver: bridge
