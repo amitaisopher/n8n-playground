@@ -1,22 +1,64 @@
 # Self-Hosted n8n Server
 
-A complete Docker-based setup for running a self-hosted n8n workflow automation platform with PostgreSQL database, organized for both development and production environments.
+A complete Docker-based setup for running a self-hosted n8n workflow automation platform with PostgreSQL database. This repository provides **four production-ready configurations** supporting both **internal** and **external** task runner modes for secure code execution.
+
+## 🎯 What's Included
+
+This setup provides:
+
+- ✅ **Four complete configurations**: Internal/External modes × Dev/Prod environments
+- ✅ **PostgreSQL database** for reliable data persistence
+- ✅ **Task runners** for secure JavaScript and Python code execution
+- ✅ **Pre-installed packages**: httpx, beautifulsoup4, axios, lodash, and more
+- ✅ **Docker containerization** for easy deployment
+- ✅ **Environment-based configuration** with separate dev/prod settings
+- ✅ **Local directory volumes** for easy backups
+- ✅ **Resource limits** in production configurations
+
+## 🚦 Quick Decision Guide
+
+**New to n8n or getting started?**
+→ Use **Internal Mode Development**: `docker-compose.internal.dev.yml`
+
+**Running production workload (most cases)?**
+→ Use **Internal Mode Production**: `docker-compose.internal.prod.yml`
+
+**Need maximum security and isolation?**
+→ Use **External Mode Production**: `docker-compose.external.prod.yml`
+
+**See [SETUP.md](docs/SETUP.md) for detailed guidance and comparison.**
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Quick Decision Guide](#quick-decision-guide)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
+- [Task Runners - Secure Code Execution](#task-runners---secure-code-execution)
 - [Quick Start](#quick-start)
 - [Environment Configuration](#environment-configuration)
 - [Running the Server](#running-the-server)
 - [Accessing n8n](#accessing-n8n)
 - [Data Persistence](#data-persistence)
 - [Updating n8n](#updating-n8n)
+- [Updating Custom Packages](#updating-custom-packages)
 - [Backup and Restore](#backup-and-restore)
 - [Troubleshooting](#troubleshooting)
 - [Security Considerations](#security-considerations)
 - [Additional Resources](#additional-resources)
+- [Quick Reference Commands](#quick-reference-commands)
+
+## 📚 Documentation
+
+This repository includes comprehensive documentation:
+
+- **[README.md](README.md)** (this file) - Main setup and configuration guide
+- **[OVERVIEW.md](docs/OVERVIEW.md)** - Visual repository structure and quick reference
+- **[SETUP.md](docs/SETUP.md)** - Comprehensive setup guide with decision matrix
+- **[COMPARISON.md](docs/COMPARISON.md)** - Detailed technical comparison of all modes
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and migration guide
+
+**New to this setup?** Start with [OVERVIEW.md](docs/OVERVIEW.md) for a visual guide.
 
 ## 🌟 Overview
 
@@ -33,18 +75,24 @@ This project provides a production-ready setup for running n8n with:
 
 ```
 n8n-playground/
-├── Dockerfile                  # Custom n8n image with Python & Node modules
-├── docker-compose.dev.yml      # Complete development environment
-├── docker-compose.prod.yml     # Complete production environment
-├── .env.example                # Example environment variables
-├── .env.development            # Development environment variables
-├── .env.production             # Production environment variables
-├── .gitignore                  # Git ignore patterns
-├── data/                       # Data directory (created on first run)
-│   ├── n8n/                    # n8n workflows, credentials, settings
-│   └── postgres/               # PostgreSQL database files
-├── CHANGELOG.md                # Project changelog
-└── README.md                   # This file
+├── Dockerfile.runners.internal        # Internal mode: n8n with embedded runners
+├── Dockerfile.runners.external        # External mode: separate task runner image
+├── n8n-task-runners.json             # Task runner configuration for allowlisted packages
+├── docker-compose.internal.dev.yml   # Internal mode development
+├── docker-compose.internal.prod.yml  # Internal mode production
+├── docker-compose.external.dev.yml   # External mode development  
+├── docker-compose.external.prod.yml  # External mode production
+├── .env.development                  # Internal mode dev environment
+├── .env.production                   # Internal mode prod environment
+├── .env.external.development         # External mode dev environment
+├── .env.external.production          # External mode prod environment
+├── .env.example                      # Example environment variables
+├── .gitignore                        # Git ignore patterns
+├── data/                             # Data directory (created on first run)
+│   ├── n8n/                          # n8n workflows, credentials, settings
+│   └── postgres/                     # PostgreSQL database files
+├── CHANGELOG.md                      # Project changelog
+└── README.md                         # This file
 ```
 
 ## ✅ Prerequisites
@@ -63,23 +111,91 @@ docker --version
 docker compose version
 ```
 
-## 🛠️ Custom Modules
+## 🛠️ Task Runners - Secure Code Execution
 
-This setup includes a custom Dockerfile that extends the official n8n image with pre-installed Python and Node.js modules for use in n8n Code nodes.
+This setup uses **n8n task runners** for secure and performant execution of custom JavaScript and Python code. Task runners can run in two modes:
 
-### Pre-installed Python Packages
+### Choosing Your Task Runner Mode
 
-- `requests` - HTTP library
-- `pandas` - Data manipulation and analysis
-- `numpy` - Numerical computing
+| Feature | Internal Mode | External Mode |
+|---------|--------------|---------------|
+| **Architecture** | Child processes within n8n container | Separate sidecar container |
+| **Isolation** | Process-level isolation | Container-level isolation |
+| **Resource Control** | Limited (shared with n8n) | Full (dedicated CPU/memory limits) |
+| **Setup Complexity** | ✅ Simple (single container) | ⚠️ Moderate (two containers) |
+| **Performance** | ✅ Fast (no network overhead) | Good (minimal WS latency) |
+| **Security** | ✅ Good (process isolation) | ✅✅ Better (container isolation) |
+| **Scaling** | Limited to n8n container | Can scale independently |
+| **Production Ready** | ✅ Yes | ✅ Yes (when image available) |
+| **Recommended For** | Most use cases, development | High-security, high-scale production |
+
+**🔹 Use Internal Mode when:**
+- Running in development or small production environments
+- Resource efficiency is important
+- You need simpler setup and maintenance
+- You're getting started with task runners
+
+**🔹 Use External Mode when:**
+- Running high-scale production workloads
+- Maximum security isolation is required
+- You need independent scaling of code execution
+- You want dedicated resource limits for runners
+- The official `n8nio/runners` image is available
+
+✅ **Note**: External mode uses the official `n8nio/runners` image. Development uses version `1.121.2` (pinned), production uses `:latest` tag.
+
+### Why Task Runners?
+
+- **Security**: Code executes with restricted permissions (RestrictedPython)
+- **Performance**: Automatic lifecycle management and resource optimization  
+- **Flexibility**: Support for custom Python and Node.js packages
+- **Production-Ready**: Recommended approach by n8n for self-hosted setups
+
+### Architecture Comparison
+
+**Internal Mode:**
+```
+┌─────────────────────────┐
+│   n8n Container         │
+│  ┌─────────────────┐   │
+│  │  n8n Main       │   │
+│  │  Task Broker    │   │
+│  └────────┬────────┘   │
+│           │             │
+│     ┌─────┴──────┐     │
+│     │            │     │
+│  ┌──▼───┐   ┌───▼──┐  │
+│  │ JS   │   │Python│  │
+│  │Runner│   │Runner│  │
+│  └──────┘   └──────┘  │
+└─────────────────────────┘
+```
+
+**External Mode:**
+```
+┌─────────────┐       ┌──────────────────┐
+│   n8n       │◄─────►│  task-runners    │
+│  (main)     │  WS   │   (sidecar)      │
+│             │ 5679  │  ┌────────────┐  │
+│  Task       │       │  │ JS Runner  │  │
+│  Broker     │       │  └────────────┘  │
+│             │       │  ┌────────────┐  │
+│             │       │  │Python Runner│ │
+│             │       │  └────────────┘  │
+└─────────────┘       └──────────────────┘
+```
+
+### Pre-installed Packages
+
+#### Python Packages
+- `httpx` - Async HTTP client
 - `beautifulsoup4` - Web scraping
 - `lxml` - XML/HTML processing
 - `openpyxl` - Excel file handling
 - `python-dateutil` - Date/time utilities
 - `pytz` - Timezone support
 
-### Pre-installed Node.js Packages
-
+#### Node.js Packages
 - `axios` - HTTP client
 - `lodash` - Utility functions
 - `moment` - Date/time manipulation
@@ -87,62 +203,109 @@ This setup includes a custom Dockerfile that extends the official n8n image with
 - `csv-parse` - CSV parsing
 - `csv-stringify` - CSV generation
 
-### Adding Custom Modules
+### Adding Custom Packages
 
-To add more Python or Node.js packages:
+The process differs slightly between internal and external modes:
 
-1. **Edit the Dockerfile**:
+#### Internal Mode
+
+1. **Edit `Dockerfile.runners.internal`**:
    ```dockerfile
-   # Add Python packages
-   RUN pip3 install --no-cache-dir \
+   # Add Python packages (use pip3 with --break-system-packages)
+   RUN pip3 install --no-cache-dir --break-system-packages \
        your-package-name \
        another-package
    
-   # Add Node.js packages
+   # Add Node.js packages (use npm global install)
    RUN npm install -g \
        your-node-package \
        another-node-package
    ```
 
-2. **Rebuild the image**:
-   ```bash
-   # Development
-   docker compose -f docker-compose.dev.yml build
-   
-   # Production
-   docker compose -f docker-compose.prod.yml build
+2. **Update environment variable in `.env.development` or `.env.production`**:
+   ```env
+   NODE_FUNCTION_ALLOW_EXTERNAL=axios,lodash,your-new-package
    ```
 
-3. **Restart the containers**:
+3. **Rebuild and restart**:
    ```bash
-   docker compose -f docker-compose.dev.yml up -d
+   docker compose -f docker-compose.internal.dev.yml build n8n
+   docker compose -f docker-compose.internal.dev.yml up -d
    ```
 
-### Using Modules in n8n
+#### External Mode
 
-**Python Code Node**:
+⚠️ **Note**: External mode currently uses the official `n8nio/runners` image directly. Custom package installation requires extending the official image.
+
+For now, use the pre-installed packages or contact n8n for guidance on extending the runners image.
+
+To allowlist existing packages:
+
+1. **Update environment variable** in `.env.external.development` or `.env.external.production`:
+   ```env
+   NODE_FUNCTION_ALLOW_EXTERNAL=axios,lodash,your-existing-package
+   ```
+
+2. **Restart the services**:
+   ```bash
+   docker compose -f docker-compose.external.dev.yml restart
+   ```
+
+### Using Custom Packages in n8n
+
+**Python Code Node** (synchronous code only):
 ```python
-import requests
-import pandas as pd
+import httpx
+from bs4 import BeautifulSoup
 
-# Your code here
-response = requests.get('https://api.example.com/data')
-df = pd.DataFrame(response.json())
-return df.to_dict('records')
+# Synchronous HTTP request
+with httpx.Client() as client:
+    response = client.get('https://api.example.com/data')
+    data = response.json()
+
+# Parse HTML
+soup = BeautifulSoup(data['html'], 'lxml')
+titles = [h2.text for h2 in soup.find_all('h2')]
+
+return {'titles': titles}
 ```
 
 **JavaScript Code Node**:
 ```javascript
 const axios = require('axios');
 const _ = require('lodash');
+const moment = require('moment');
 
-// Your code here
+// Make HTTP request
 const response = await axios.get('https://api.example.com/data');
+
+// Process with lodash
 const filtered = _.filter(response.data, { active: true });
-return filtered;
+
+// Format dates
+const formatted = filtered.map(item => ({
+  ...item,
+  date: moment(item.timestamp).format('YYYY-MM-DD')
+}));
+
+return formatted;
 ```
 
+### Important Limitations
+
+⚠️ **Python code must be synchronous** - Task runners use RestrictedPython which blocks:
+- `asyncio` operations (use `httpx.Client` instead of `httpx.AsyncClient`)
+- File system operations
+- Subprocess execution
+- Network operations via certain libraries
+
+For async operations or unrestricted Python, consider using an external Python service (Flask/FastAPI) called via HTTP Request node.
+
 ## 🚀 Quick Start
+
+Choose your task runner mode first (see [Choosing Your Task Runner Mode](#choosing-your-task-runner-mode)):
+- **Internal Mode** (recommended for most users): Simpler setup, single container
+- **External Mode** (advanced): Better isolation, requires `n8nio/runners` image
 
 ### 1. Clone or Download
 
@@ -150,13 +313,11 @@ Clone this repository or download the files to your local machine.
 
 ### 2. Configure Environment Variables
 
-**Important**: All environment variables are loaded from `.env.development` or `.env.production` files. You don't need to copy them to a `.env` file.
-
-For **Development**:
+**For Internal Mode** (Development):
 
 ```bash
-# Edit the development environment file directly
-nano .env.development  # or use your preferred editor
+# Edit the internal development environment file
+nano .env.development
 
 # Generate a secure encryption key (IMPORTANT!)
 openssl rand -hex 32
@@ -164,11 +325,11 @@ openssl rand -hex 32
 # Replace the N8N_ENCRYPTION_KEY value in .env.development
 ```
 
-For **Production**:
+**For Internal Mode** (Production):
 
 ```bash
-# Edit the production environment file directly
-nano .env.production  # or use your preferred editor
+# Edit the internal production environment file
+nano .env.production
 
 # Generate a strong encryption key
 openssl rand -hex 32
@@ -176,32 +337,83 @@ openssl rand -hex 32
 # Update ALL values in .env.production (especially passwords, encryption key, and domain)
 ```
 
-### 3. Build and Start n8n
-
-**Development environment**:
+**For External Mode** (Development):
 
 ```bash
-# Build the custom n8n image
-docker compose -f docker-compose.dev.yml build
+# Edit the external development environment file
+nano .env.external.development
 
-# Start all services
-docker compose -f docker-compose.dev.yml up -d
+# Generate encryption key and auth token
+openssl rand -hex 32  # For N8N_ENCRYPTION_KEY
+openssl rand -hex 32  # For N8N_RUNNERS_AUTH_TOKEN
 
-# View logs
-docker compose -f docker-compose.dev.yml logs -f
+# Update both values in .env.external.development
 ```
 
-**Production environment**:
+**For External Mode** (Production):
 
 ```bash
-# Build the custom n8n image
-docker compose -f docker-compose.prod.yml build
+# Edit the external production environment file  
+nano .env.external.production
+
+# Generate unique keys for production
+openssl rand -hex 32  # For N8N_ENCRYPTION_KEY
+openssl rand -hex 32  # For N8N_RUNNERS_AUTH_TOKEN
+
+# Update ALL values (passwords, encryption key, auth token, domain)
+```
+
+### 3. Build and Start n8n
+
+**Internal Mode - Development**:
+
+```bash
+# Build the n8n image with embedded runners
+docker compose -f docker-compose.internal.dev.yml build
 
 # Start all services
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.internal.dev.yml up -d
 
 # View logs
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.internal.dev.yml logs -f
+```
+
+**Internal Mode - Production**:
+
+```bash
+# Build and start
+docker compose -f docker-compose.internal.prod.yml build
+docker compose -f docker-compose.internal.prod.yml up -d
+
+# View logs
+docker compose -f docker-compose.internal.prod.yml logs -f
+```
+
+**External Mode - Development**:
+
+```bash
+# Build both n8n and task-runners images
+docker compose -f docker-compose.external.dev.yml build
+
+# Start all services (n8n, task-runners, postgres)
+docker compose -f docker-compose.external.dev.yml up -d
+
+# View logs
+docker compose -f docker-compose.external.dev.yml logs -f
+
+# Check task runner connection
+docker compose -f docker-compose.external.dev.yml logs task-runners | grep -i connected
+```
+
+**External Mode - Production**:
+
+```bash
+# Build and start
+docker compose -f docker-compose.external.prod.yml build
+docker compose -f docker-compose.external.prod.yml up -d
+
+# View logs
+docker compose -f docker-compose.external.prod.yml logs -f
 ```
 
 ### 4. Access n8n
@@ -213,15 +425,19 @@ Open your browser and navigate to:
 
 ## ⚙️ Environment Configuration
 
-All environment variables are defined in:
-- `.env.development` - For development environment
-- `.env.production` - For production environment
+Environment variables are defined in separate files based on your chosen mode and environment:
 
-These files are loaded automatically via the `env_file:` directive in the docker-compose override files.
+**Internal Mode:**
+- `.env.development` - Internal mode development
+- `.env.production` - Internal mode production
 
-### Essential Variables
+**External Mode:**
+- `.env.external.development` - External mode development
+- `.env.external.production` - External mode production
 
-You **must** configure these variables in your `.env.development` or `.env.production` file:
+These files are loaded automatically via the `env_file:` directive in docker-compose files.
+
+### Essential Variables (All Modes)
 
 #### Timezone Settings
 
@@ -249,6 +465,33 @@ N8N_ENCRYPTION_KEY=your-generated-key-here  # Generate with: openssl rand -hex 3
 
 ⚠️ **IMPORTANT**: Never use the same encryption key between development and production!
 
+#### Task Runner Configuration - Internal Mode
+
+```env
+N8N_RUNNERS_ENABLED=true                           # Enable task runners
+N8N_RUNNERS_MODE=internal                          # Use internal mode (child processes)
+NODE_FUNCTION_ALLOW_EXTERNAL=axios,lodash,moment   # Allowlist for JS packages
+```
+
+#### Task Runner Configuration - External Mode
+
+```env
+N8N_RUNNERS_ENABLED=true                           # Enable task runners
+N8N_RUNNERS_MODE=external                          # Use external mode (sidecar)
+N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0         # Allow connections from sidecar
+N8N_RUNNERS_AUTH_TOKEN=your-secure-token-here      # Generate with: openssl rand -hex 32
+N8N_NATIVE_PYTHON_RUNNER=true                      # Enable Python runner (beta)
+
+# Task runner container configuration (set in runners container only)
+N8N_RUNNERS_TASK_BROKER_URI=http://n8n-external-dev:5679   # Use http:// not ws://
+N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT=15               # Auto-shutdown after 15s idle
+```
+
+⚠️ **IMPORTANT**: 
+- Use different `N8N_RUNNERS_AUTH_TOKEN` values for dev and production!
+- `N8N_RUNNERS_TASK_BROKER_URI` must use `http://` protocol (not `ws://`)
+- `N8N_RUNNERS_TASK_BROKER_URI` should only be set in the runners container environment
+
 #### Database Configuration
 
 ```env
@@ -273,59 +516,85 @@ Additional variables you can configure in your environment file (see `.env.examp
 
 ## 🏃 Running the Server
 
+Commands vary based on your chosen mode (internal or external) and environment (dev or prod).
+
 ### Start the Server
 
-**Development**:
+**Internal Mode - Development**:
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.internal.dev.yml up -d
 ```
 
-**Production**:
+**Internal Mode - Production**:
 ```bash
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.internal.prod.yml up -d
+```
+
+**External Mode - Development**:
+```bash
+docker compose -f docker-compose.external.dev.yml up -d
+```
+
+**External Mode - Production**:
+```bash
+docker compose -f docker-compose.external.prod.yml up -d
 ```
 
 ### Stop the Server
 
 ```bash
-# Stop development
-docker compose -f docker-compose.dev.yml down
+# Internal Dev
+docker compose -f docker-compose.internal.dev.yml down
 
-# Stop production
-docker compose -f docker-compose.prod.yml down
+# Internal Prod
+docker compose -f docker-compose.internal.prod.yml down
+
+# External Dev
+docker compose -f docker-compose.external.dev.yml down
+
+# External Prod
+docker compose -f docker-compose.external.prod.yml down
 ```
 
 ### Restart the Server
 
 ```bash
-# Restart development
-docker compose -f docker-compose.dev.yml restart
+# Internal Dev
+docker compose -f docker-compose.internal.dev.yml restart
 
-# Restart production
-docker compose -f docker-compose.prod.yml restart
+# External Dev
+docker compose -f docker-compose.external.dev.yml restart
+
+# (Use corresponding commands for prod)
 ```
 
 ### View Logs
 
 ```bash
-# View all logs (development)
-docker compose -f docker-compose.dev.yml logs -f
+# View all logs (Internal Dev)
+docker compose -f docker-compose.internal.dev.yml logs -f
 
-# View n8n logs only
-docker compose -f docker-compose.dev.yml logs -f n8n
+# View all logs (External Dev)
+docker compose -f docker-compose.external.dev.yml logs -f
 
-# View PostgreSQL logs only
-docker compose -f docker-compose.dev.yml logs -f postgres
+# View specific service logs (example: External Dev task-runners)
+docker compose -f docker-compose.external.dev.yml logs -f task-runners
+
+# View n8n logs only (Internal Dev)
+docker compose -f docker-compose.internal.dev.yml logs -f n8n
+
+# View PostgreSQL logs (Internal Dev)
+docker compose -f docker-compose.internal.dev.yml logs -f postgres
 ```
 
 ### Check Status
 
 ```bash
-# Development
-docker compose -f docker-compose.dev.yml ps
+# Internal Dev
+docker compose -f docker-compose.internal.dev.yml ps
 
-# Production
-docker compose -f docker-compose.prod.yml ps
+# External Dev  
+docker compose -f docker-compose.external.dev.yml ps
 ```
 
 ## 🌐 Accessing n8n
@@ -397,60 +666,121 @@ ls -la data/postgres/
 
 ## 🔄 Updating n8n
 
-### 1. Backup Your Data (Recommended)
+The update process varies by mode:
 
+### Internal Mode
+
+1. **Backup Your Data**:
 ```bash
-# Backup directories
 tar czf n8n_backup_$(date +%Y%m%d).tar.gz data/
-
-# Or use rsync
-rsync -avz data/ backup/n8n_$(date +%Y%m%d)/
 ```
 
-### 2. Pull Latest Base Image
-
+2. **Pull Latest n8n Image**:
 ```bash
 docker pull docker.n8n.io/n8nio/n8n:latest
 ```
 
-### 3. Rebuild Custom Image
-
+3. **Rebuild Image with Updated Packages**:
 ```bash
 # Development
-docker compose -f docker-compose.dev.yml build --no-cache
+docker compose -f docker-compose.internal.dev.yml build n8n --no-cache
 
 # Production
-docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.internal.prod.yml build n8n --no-cache
 ```
 
-### 4. Restart with New Image
-
+4. **Restart**:
 ```bash
 # Development
-docker compose -f docker-compose.dev.yml down
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.internal.dev.yml down
+docker compose -f docker-compose.internal.dev.yml up -d
 
 # Production
-docker compose -f docker-compose.prod.yml down
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.internal.prod.yml down
+docker compose -f docker-compose.internal.prod.yml up -d
 ```
 
-### 5. Verify Update
+### External Mode
 
+1. **Backup Your Data**:
 ```bash
-docker compose -f docker-compose.dev.yml logs n8n | grep version
+tar czf n8n_backup_$(date +%Y%m%d).tar.gz data/
 ```
 
-## 🔄 Updating Custom Modules
+2. **Pull Latest Images**:
+```bash
+# Pull n8n image
+docker pull docker.n8n.io/n8nio/n8n:latest
 
-To add, remove, or update Python/Node.js packages:
+# Pull runners image (when available)
+docker pull docker.n8n.io/n8nio/runners:latest
+```
 
-1. **Edit the Dockerfile** to modify the package lists
+3. **Rebuild Task Runners Image**:
+```bash
+# Development
+docker compose -f docker-compose.external.dev.yml build task-runners --no-cache
 
-2. **Rebuild and restart**:
+# Production
+docker compose -f docker-compose.external.prod.yml build task-runners --no-cache
+```
+
+4. **Restart All Services**:
+```bash
+# Development
+docker compose -f docker-compose.external.dev.yml down
+docker compose -f docker-compose.external.dev.yml up -d
+
+# Production
+docker compose -f docker-compose.external.prod.yml down
+docker compose -f docker-compose.external.prod.yml up -d
+```
+
+5. **Verify Task Runner Connection**:
+```bash
+# Development
+docker compose -f docker-compose.external.dev.yml logs task-runners | grep -i connected
+
+# Check n8n logs for runner registration
+docker compose -f docker-compose.external.dev.yml logs n8n | grep -i runner
+```
+
+## 🔄 Updating Custom Packages
+
+The process differs by mode:
+
+### Internal Mode
+
+1. **Edit `Dockerfile.runners.internal`** to modify package lists
+
+2. **Update `NODE_FUNCTION_ALLOW_EXTERNAL` in environment file**
+
+3. **Rebuild and restart**:
    ```bash
-   docker compose -f docker-compose.dev.yml build
-   docker compose -f docker-compose.dev.yml up -d
+   # Development
+   docker compose -f docker-compose.internal.dev.yml build n8n
+   docker compose -f docker-compose.internal.dev.yml up -d
+   
+   # Production
+   docker compose -f docker-compose.internal.prod.yml build n8n
+   docker compose -f docker-compose.internal.prod.yml up -d
+   ```
+
+### External Mode
+
+1. **Edit `Dockerfile.runners.external`** to modify package lists
+
+2. **Edit `n8n-task-runners.json`** to update allowlists
+
+3. **Rebuild and restart**:
+   ```bash
+   # Development
+   docker compose -f docker-compose.external.dev.yml build task-runners
+   docker compose -f docker-compose.external.dev.yml restart task-runners
+   
+   # Production
+   docker compose -f docker-compose.external.prod.yml build task-runners
+   docker compose -f docker-compose.external.prod.yml restart task-runners
    ```
 
 ## 💿 Backup and Restore
@@ -563,9 +893,33 @@ docker compose -f docker-compose.prod.yml up -d
 3. **Cannot access n8n**: Verify `WEBHOOK_URL` matches your actual URL
 4. **Workflows not executing**: Check encryption key is set correctly
 5. **Permission denied on data folders**: Run `sudo chown -R $(id -u):$(id -g) data/`
-6. **Module not found in Code node**: Rebuild the image with `docker compose -f docker-compose.dev.yml build --no-cache`
-7. **Python version issues**: Check version with `docker exec n8n-dev python --version`
-8. **Node.js package issues**: List installed packages with `docker exec n8n-dev npm list -g --depth=0`
+
+### Task Runner Issues
+
+**Code node shows "Blocked for security reasons"**:
+- Check that `N8N_RUNNERS_ENABLED=true` and `N8N_RUNNERS_MODE=external`
+- Verify task-runners container is running: `docker ps | grep task-runners`
+- Check `N8N_RUNNERS_AUTH_TOKEN` matches in both n8n and task-runners containers
+- Review logs: `docker compose -f docker-compose.external.dev.yml logs task-runners`
+
+**Python asyncio not working**:
+- Task runners use RestrictedPython which blocks asyncio
+- Use synchronous alternatives: `httpx.Client()` instead of `httpx.AsyncClient()`
+- For async operations, consider using an external Python service
+
+**Module not found in Code node**:
+1. External mode uses official `n8nio/runners` image with pre-installed packages
+2. Check the module is in the pre-installed list (see Pre-installed Packages section)
+3. Verify `NODE_FUNCTION_ALLOW_EXTERNAL` environment variable includes the package
+4. Restart: `docker compose -f docker-compose.external.dev.yml restart`
+
+**Task runner won't connect to broker**:
+- Verify `N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0` in n8n environment
+- Check `N8N_RUNNERS_TASK_BROKER_URI=http://n8n-external-dev:5679` (must use `http://` not `ws://`)
+- Verify `N8N_RUNNERS_TASK_BROKER_URI` is only set in runners container, not in n8n container
+- Ensure both containers are on same Docker network
+- Check logs: `docker compose -f docker-compose.external.dev.yml logs n8n | grep -i runner`
+- Check connection: `docker compose -f docker-compose.external.dev.yml logs task-runners | grep -i connected`
 
 ## 🔒 Security Considerations
 
@@ -619,38 +973,102 @@ For production, consider adding:
 
 ## 📝 Quick Reference Commands
 
+### Internal Mode
+
 ```bash
-# Build (first time or after Dockerfile changes)
-docker compose -f docker-compose.dev.yml build
+# Build (first time or after changes)
+docker compose -f docker-compose.internal.dev.yml build
 
 # Start (Development)
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.internal.dev.yml up -d
 
 # Start (Production)
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.internal.prod.yml up -d
 
-# Stop (specify environment)
-docker compose -f docker-compose.dev.yml down
+# Stop
+docker compose -f docker-compose.internal.dev.yml down
 
-# View logs (specify environment)
-docker compose -f docker-compose.dev.yml logs -f
+# View logs
+docker compose -f docker-compose.internal.dev.yml logs -f n8n
 
-# Update (rebuild and restart)
+# Update n8n
 docker pull docker.n8n.io/n8nio/n8n:latest
-docker compose -f docker-compose.dev.yml build --no-cache
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.internal.dev.yml build n8n --no-cache
+docker compose -f docker-compose.internal.dev.yml up -d
+
+# Rebuild after adding packages
+docker compose -f docker-compose.internal.dev.yml build n8n
+docker compose -f docker-compose.internal.dev.yml restart n8n
 
 # Backup data
 tar czf backup.tar.gz data/
 
-# Restore data
-tar xzf backup.tar.gz
+# Enter container
+docker compose -f docker-compose.internal.dev.yml exec n8n sh
 
-# Enter n8n container (development)
-docker compose -f docker-compose.dev.yml exec n8n sh
+# Enter PostgreSQL
+docker compose -f docker-compose.internal.dev.yml exec postgres psql -U n8n_user -d n8n
+```
 
-# Enter PostgreSQL container (development)
-docker compose -f docker-compose.dev.yml exec postgres psql -U n8n_user -d n8n
+### External Mode
+
+```bash
+# Build (first time or after changes)
+docker compose -f docker-compose.external.dev.yml build
+
+# Start (Development)
+docker compose -f docker-compose.external.dev.yml up -d
+
+# Start (Production)
+docker compose -f docker-compose.external.prod.yml up -d
+
+# Stop
+docker compose -f docker-compose.external.dev.yml down
+
+# View logs
+docker compose -f docker-compose.external.dev.yml logs -f n8n
+docker compose -f docker-compose.external.dev.yml logs -f task-runners
+
+# Update n8n and task runners
+docker pull docker.n8n.io/n8nio/n8n:latest
+docker pull docker.n8n.io/n8nio/runners:latest
+docker compose -f docker-compose.external.dev.yml build task-runners --no-cache
+docker compose -f docker-compose.external.dev.yml up -d
+
+# Rebuild just task runners
+docker compose -f docker-compose.external.dev.yml build task-runners
+docker compose -f docker-compose.external.dev.yml restart task-runners
+
+# Backup data
+tar czf backup.tar.gz data/
+
+# Enter n8n container
+docker compose -f docker-compose.external.dev.yml exec n8n sh
+
+# Enter task-runners container
+docker compose -f docker-compose.external.dev.yml exec task-runners sh
+
+# Enter PostgreSQL
+docker compose -f docker-compose.external.dev.yml exec postgres psql -U n8n_user -d n8n
+
+# Check task runner connection status
+docker compose -f docker-compose.external.dev.yml logs task-runners | grep -i "connected\|error"
+
+# View task runner configuration
+docker compose -f docker-compose.external.dev.yml exec task-runners cat /etc/n8n-task-runners.json
+```
+
+### Switching Between Modes
+
+```bash
+# Stop current mode (example: internal dev)
+docker compose -f docker-compose.internal.dev.yml down
+
+# Start different mode (example: external dev)
+docker compose -f docker-compose.external.dev.yml build
+docker compose -f docker-compose.external.dev.yml up -d
+
+# Data in ./data/ is shared between modes
 ```
 
 ## 🆘 Support

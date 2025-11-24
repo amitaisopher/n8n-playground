@@ -1,13 +1,10 @@
 services:
   n8n:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: n8n-custom:dev
-    container_name: n8n-dev
+    image: n8nio/n8n:1.121.2
+    container_name: n8n-external-dev
     restart: unless-stopped
     env_file:
-      - .env.development
+      - .env.external.development
     ports:
       - "5678:5678"
     volumes:
@@ -18,12 +15,23 @@ services:
       postgres:
         condition: service_healthy
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: n8n-postgres-dev
+  task-runners:
+    image: n8nio/runners:1.121.2
+    container_name: n8n-runners-external-dev
     restart: unless-stopped
     env_file:
-      - .env.development
+      - .env.external.development
+    networks:
+      - n8n-network
+    depends_on:
+      - n8n
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres-external-dev
+    restart: unless-stopped
+    env_file:
+      - .env.external.development
     environment:
       - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_dev}
       - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_dev}

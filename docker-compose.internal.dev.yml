@@ -1,0 +1,45 @@
+services:
+  n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile.runners.internal
+    image: n8n-custom:dev
+    container_name: n8n-dev
+    restart: unless-stopped
+    env_file:
+      - .env.internal.development
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres-dev
+    restart: unless-stopped
+    env_file:
+      - .env.internal.development
+    environment:
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_dev}
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_dev}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-n8n_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  n8n-network:
+    driver: bridge
