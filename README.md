@@ -6,9 +6,11 @@ A complete Docker-based setup for running a self-hosted n8n workflow automation 
 
 This setup provides:
 
-- ✅ **Four complete configurations**: Internal/External modes × Dev/Prod environments
+- ✅ **Six complete configurations**: Internal/External/Queue modes × Dev/Prod environments
 - ✅ **PostgreSQL database** for reliable data persistence
+- ✅ **Redis queue** for distributed workflow execution (queue mode)
 - ✅ **Task runners** for secure JavaScript and Python code execution
+- ✅ **Worker processes** for horizontal scaling (queue mode)
 - ✅ **Pre-installed packages**: httpx, beautifulsoup4, axios, lodash, and more
 - ✅ **Docker containerization** for easy deployment
 - ✅ **Environment-based configuration** with separate dev/prod settings
@@ -25,6 +27,12 @@ This setup provides:
 
 **Need maximum security and isolation?**
 → Use **External Mode Production**: `docker-compose.external.prod.yml`
+
+**Need to scale workflow execution horizontally?**
+→ Use **Queue Mode Production**: `docker-compose.queue.prod.yml`
+
+**High-volume workflows (hundreds per hour)?**
+→ Use **Queue Mode** with multiple workers for parallel execution
 
 **See [SETUP.md](docs/SETUP.md) for detailed guidance and comparison.**
 
@@ -56,9 +64,12 @@ This repository includes comprehensive documentation:
 - **[OVERVIEW.md](docs/OVERVIEW.md)** - Visual repository structure and quick reference
 - **[SETUP.md](docs/SETUP.md)** - Comprehensive setup guide with decision matrix
 - **[COMPARISON.md](docs/COMPARISON.md)** - Detailed technical comparison of all modes
+- **[MODE-MIGRATION.md](docs/MODE-MIGRATION.md)** - ⚠️ **Critical guide for switching between modes**
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and migration guide
 
 **New to this setup?** Start with [OVERVIEW.md](docs/OVERVIEW.md) for a visual guide.
+
+**Switching modes?** Read [MODE-MIGRATION.md](docs/MODE-MIGRATION.md) first to avoid data loss!
 
 ## 🌟 Overview
 
@@ -71,6 +82,122 @@ This project provides a production-ready setup for running n8n with:
 - **Network isolation** with Docker networks
 - **Environment-based configuration** using env files
 
+## 🔀 Understanding n8n Modes
+
+This setup supports **three orthogonal dimensions** that can be combined:
+
+### 1. Task Runner Modes (Code Execution)
+
+Controls **where and how** JavaScript and Python code executes:
+
+#### **Internal Mode** (Default)
+- **What it does**: Task runners run as child processes inside the n8n container
+- **Code execution**: Same container as n8n main process
+- **Architecture**: Single container (n8n + embedded runners + PostgreSQL)
+- **Security**: Process-level isolation with RestrictedPython
+- **Best for**: Development, small-to-medium production, resource efficiency
+- **Setup**: Simple - just one n8n container
+
+#### **External Mode** (Enhanced Security)
+- **What it does**: Task runners run in a separate sidecar container
+- **Code execution**: Dedicated container isolated from n8n
+- **Architecture**: Multi-container (n8n + task-runners + PostgreSQL)
+- **Communication**: WebSocket on port 5679 with authentication token
+- **Security**: Container-level isolation + process isolation
+- **Best for**: High-security production, independent scaling of code execution
+- **Setup**: Moderate - two containers with network communication
+
+### 2. Queue Mode (Workflow Execution)
+
+Controls **how workflow executions are distributed**:
+
+#### **Regular Mode** (Default)
+- **What it does**: n8n main process executes all workflows directly
+- **Architecture**: Single n8n instance handles everything (UI + webhooks + execution)
+- **Best for**: Low-to-medium volume workflows (< 100 executions/hour)
+- **Scaling**: Vertical only (increase container resources)
+
+#### **Queue Mode** (Horizontal Scaling)
+- **What it does**: Separates execution into main instance + worker processes
+- **Main instance**: Handles ONLY webhooks, timers, polling, and UI (no execution)
+- **Worker processes**: Execute workflows from Redis queue in parallel
+- **Architecture**: Multi-process (1 main + N workers + Redis + PostgreSQL)
+- **Communication**: Redis pub/sub for job distribution
+- **Best for**: High-volume workflows (hundreds/hour), long-running workflows
+- **Scaling**: Horizontal (add more workers) + vertical (increase worker resources)
+- **Requirements**: 
+  - Redis for queue management
+  - PostgreSQL (SQLite unsupported)
+  - Shared encryption key across all processes
+  - S3 or compatible storage for binary data (filesystem unsupported)
+
+### 3. Combining Modes
+
+You can **combine** task runner modes with queue mode:
+
+| Combination | Architecture | Use Case |
+|------------|--------------|----------|
+| **Internal + Regular** | 1 container (n8n) | Default setup, development, small production |
+| **External + Regular** | 2 containers (n8n + runners) | Security-focused, medium production |
+| **Internal + Queue** | 1 main + N workers (all with embedded runners) | High-volume, resource-efficient |
+| **External + Queue** | 1 main + N workers + dedicated runners | High-volume + maximum security |
+
+#### **Queue + Internal Mode** (Current Setup)
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Main Instance  │     │   Worker 1      │     │   Worker 2      │
+│  ┌──────────┐   │     │  ┌──────────┐   │     │  ┌──────────┐   │
+│  │ Webhooks │   │     │  │ Executes │   │     │  │ Executes │   │
+│  │ UI       │   │     │  │ Workflows│   │     │  │ Workflows│   │
+│  │ Timers   │   │     │  │          │   │     │  │          │   │
+│  │          │   │     │  │ Embedded │   │     │  │ Embedded │   │
+│  │          │   │     │  │ Runners  │   │     │  │ Runners  │   │
+│  └──────────┘   │     │  └──────────┘   │     │  └──────────┘   │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         └───────────────────────┴───────────────────────┘
+                              │
+                         ┌────▼─────┐
+                         │  Redis   │
+                         │  Queue   │
+                         └──────────┘
+```
+
+#### **Queue + External Mode** (Maximum Security + Scale)
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│   Main      │   │  Worker 1   │   │  Worker 2   │
+│ (Webhooks)  │   │  (Execute)  │   │  (Execute)  │
+└──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+       │                 │                 │
+       │                 │                 │
+       ▼                 ▼                 ▼
+┌──────────────────────────────────────────────┐
+│           Task Runners Container             │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐      │
+│  │  JS     │  │ Python  │  │  More   │      │
+│  │ Runner  │  │ Runner  │  │ Runners │      │
+│  └─────────┘  └─────────┘  └─────────┘      │
+└──────────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────┐
+│   Redis     │
+│   Queue     │
+└─────────────┘
+```
+
+### Quick Mode Selection Matrix
+
+| Your Needs | Recommended Mode | Config File |
+|------------|------------------|-------------|
+| Just getting started | Internal + Regular | `docker-compose.internal.dev.yml` |
+| Small production | Internal + Regular | `docker-compose.internal.prod.yml` |
+| Need better code isolation | External + Regular | `docker-compose.external.prod.yml` |
+| High workflow volume | Internal + Queue | `docker-compose.queue.dev.yml` |
+| High volume + max security | External + Queue | Create custom compose (combine patterns) |
+| Enterprise with HA | External + Queue + Multi-main | Create custom compose with multiple mains |
+
 ## 📁 Project Structure
 
 ```
@@ -82,15 +209,20 @@ n8n-playground/
 ├── docker-compose.internal.prod.yml  # Internal mode production
 ├── docker-compose.external.dev.yml   # External mode development  
 ├── docker-compose.external.prod.yml  # External mode production
+├── docker-compose.queue.dev.yml      # Queue mode development (1 main + 2 workers)
+├── docker-compose.queue.prod.yml     # Queue mode production (1 main + 4 workers)
 ├── .env.development                  # Internal mode dev environment
 ├── .env.production                   # Internal mode prod environment
 ├── .env.external.development         # External mode dev environment
 ├── .env.external.production          # External mode prod environment
+├── .env.queue.development            # Queue mode dev environment
+├── .env.queue.production             # Queue mode prod environment
 ├── .env.example                      # Example environment variables
 ├── .gitignore                        # Git ignore patterns
 ├── data/                             # Data directory (created on first run)
 │   ├── n8n/                          # n8n workflows, credentials, settings
-│   └── postgres/                     # PostgreSQL database files
+│   ├── postgres/                     # PostgreSQL database files
+│   └── redis/                        # Redis queue data (queue mode only)
 ├── CHANGELOG.md                      # Project changelog
 └── README.md                         # This file
 ```
@@ -837,6 +969,80 @@ docker compose -f docker-compose.dev.yml start n8n
 ```
 
 ## 🔧 Troubleshooting
+
+### ⚠️ CRITICAL: Switching Between Modes with Shared PostgreSQL Volume
+
+**Problem**: If you run n8n in one mode (e.g., internal/external) and then switch to **queue mode** using the same `./data/postgres` directory, the containers will fail to start with database initialization errors.
+
+**Why This Happens**:
+- Different modes require different database schemas and configurations
+- Queue mode requires specific database tables and settings that are only created when n8n detects a **fresh, empty database**
+- When you switch modes but reuse the existing PostgreSQL volume, the database contains the schema from the previous mode
+- Queue mode expects certain tables/columns that don't exist in the regular mode database
+- n8n cannot migrate an existing non-queue database to queue mode automatically
+
+**Symptoms**:
+```
+n8n-postgres-queue-dev  | FATAL:  role "n8n_queue_dev" does not exist
+OR
+n8n-main-queue-dev      | Error: There was an error initializing DB
+OR
+n8n-main-queue-dev      | Missing required column for queue mode
+```
+
+**Solution 1: Fresh Database (Recommended for Testing/Development)**
+
+⚠️ **WARNING**: This deletes all your workflows, credentials, and execution history!
+
+```bash
+# 1. Stop all containers
+docker compose -f docker-compose.internal.dev.yml down  # or whichever mode you were using
+
+# 2. Backup your data first (IMPORTANT!)
+tar czf backup_before_queue_$(date +%Y%m%d_%H%M%S).tar.gz data/
+
+# 3. Remove the PostgreSQL volume
+rm -rf data/postgres/
+
+# 4. Start queue mode - it will create a fresh database
+docker compose -f docker-compose.queue.dev.yml up -d
+```
+
+**Solution 2: Use Separate PostgreSQL Volumes per Mode (Recommended for Production)**
+
+Modify the docker-compose file to use mode-specific volume paths:
+
+```yaml
+# In docker-compose.queue.dev.yml, change:
+volumes:
+  - ./data/postgres-queue:/var/lib/postgresql/data  # Instead of ./data/postgres
+
+# In docker-compose.internal.dev.yml, keep:
+volumes:
+  - ./data/postgres:/var/lib/postgresql/data
+```
+
+This allows you to:
+- Switch between modes without conflicts
+- Keep separate databases for each mode
+- Test different modes without data loss
+- Each mode maintains its own database state
+
+**Best Practice**:
+- Use **separate PostgreSQL volumes** for each mode in production
+- Always **backup before switching modes**
+- Consider using **different database names** for each mode
+- Document which mode each database belongs to
+
+**Alternative: Database Migration (Advanced)**
+
+If you need to preserve data when switching to queue mode:
+1. Export workflows and credentials from n8n UI
+2. Switch to queue mode with fresh database
+3. Import workflows and credentials into new instance
+4. Note: Execution history cannot be migrated
+
+---
 
 ### Container Won't Start
 

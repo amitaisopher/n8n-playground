@@ -13,14 +13,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task runner environment variables** properly scoped to runners container only
 - **Code node hanging issue** in external mode resolved with proper configuration
 - Container startup sequence and health checks for external mode
+- **Queue mode PostgreSQL initialization** - Added default password fallback in docker-compose files to prevent database initialization failures
 
 ### Added
-- **Dual-mode task runner architecture** supporting both internal and external modes
-- **Four complete Docker Compose configurations**:
+- **Queue mode scaling architecture** with Redis-based job queue
+- **Six complete Docker Compose configurations**:
   - `docker-compose.internal.dev.yml` - Internal mode development
   - `docker-compose.internal.prod.yml` - Internal mode production
   - `docker-compose.external.dev.yml` - External mode development
   - `docker-compose.external.prod.yml` - External mode production
+  - `docker-compose.queue.dev.yml` - Queue mode development (1 main + 2 workers)
+  - `docker-compose.queue.prod.yml` - Queue mode production (1 main + 4 workers)
+- **Queue mode environment files**:
+  - `.env.queue.development` - Queue mode development configuration
+  - `.env.queue.production` - Queue mode production configuration
+- **Redis integration** for queue management with persistence
+- **Worker processes** for distributed workflow execution:
+  - Development: 2 workers @ 4GB RAM each, concurrency 10
+  - Production: 4 workers @ 8GB RAM each, concurrency 10
+- **Main instance** dedicated to webhooks, timers, and UI (no workflow execution)
+- Worker health checks on port 5680
+- S3 configuration templates for production binary data storage
+- Multi-main HA setup options (documented in production env)
+- Webhook processor configuration options
+- Resource limits and reservations for all queue mode services
+- Redis authentication options for production
+- **docs/MODE-MIGRATION.md** - Comprehensive guide for safely switching between modes
+- **Mode explanation section** in README.md explaining internal/external/queue modes and combinations
+- **Critical warning** in README.md about PostgreSQL volume conflicts when switching modesed
+- PostgreSQL environment variable configuration now includes default password fallbacks
+- Queue mode uses separate database names (`n8n_queue_dev`, `n8n_queue_prod`)
+- All modes now use consistent PostgreSQL password handling pattern
+
+### Technical Details - Queue Mode
+
+#### Architecture
+- **Main Instance**: Handles webhooks, timers, polling triggers, and UI (no workflow execution)
+- **Worker Processes**: Execute workflows from Redis queue in parallel
+- **Redis**: Message broker for job queue with persistence (--appendonly yes)
+- **PostgreSQL**: Required (SQLite not supported in queue mode)
+- **Execution Mode**: `EXECUTIONS_MODE=queue`
+
+#### Worker Configuration
+- **Development Setup**:
+  - 1 main instance: 4GB RAM, 2 CPU cores
+  - 2 workers: 4GB RAM each, 2 CPU cores each
+  - Worker concurrency: 10 jobs per worker
+  - Total capacity: 20 concurrent executions
+
+- **Production Setup**:
+  - 1 main instance: 8GB RAM, 4 CPU cores  
+  - 4 workers: 8GB RAM each, 4 CPU cores each
+  - Worker concurrency: 10 jobs per worker
+  - Total capacity: 40 concurrent executions
+
+#### Queue Mode Requirements
+- Shared encryption key across main and all workers (critical)
+- Redis for queue management
+- PostgreSQL database (SQLite unsupported)
+- S3 or compatible storage for binary data (filesystem unsupported)
+- Network connectivity between all services
+
+#### Queue Mode Features
+- Horizontal scaling by adding more workers
+- Automatic job distribution via Redis
+- Health checks for all services
+- Graceful shutdown with 30s timeout
+- Worker lifecycle management
+- Optional multi-main setup for high availability
+- Optional dedicated webhook processors
+
+#### When to Use Queue Mode
+- **High-volume workflows**: Hundreds of executions per hour
+- **Long-running workflows**: Need to scale execution capacity
+- **Horizontal scaling**: Want to add workers based on load
+- **High availability**: Need redundant main instances
+- **Resource isolation**: Separate execution from main instance
+
+### Added - All Modes
+- **Dual-mode task runner architecture** supporting both internal and external modes
 - **Dedicated Dockerfiles for each mode**:
   - `Dockerfile.runners.internal` - Extends n8n with embedded runners
   - `Dockerfile.runners.external` - Separate task runner container
