@@ -39,7 +39,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/postgres-external:/var/lib/postgresql/data
     networks:
       - n8n-network
     healthcheck:

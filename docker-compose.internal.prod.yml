@@ -35,9 +35,9 @@ services:
     environment:
       - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_prod}
       - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_prod}
-      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-change_me_in_production}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/postgres-internal:/var/lib/postgresql/data
     networks:
       - n8n-network
     healthcheck:

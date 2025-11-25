@@ -65,11 +65,14 @@ This repository includes comprehensive documentation:
 - **[SETUP.md](docs/SETUP.md)** - Comprehensive setup guide with decision matrix
 - **[COMPARISON.md](docs/COMPARISON.md)** - Detailed technical comparison of all modes
 - **[MODE-MIGRATION.md](docs/MODE-MIGRATION.md)** - ⚠️ **Critical guide for switching between modes**
+- **[PYTHON-SETUP.md](docs/PYTHON-SETUP.md)** - 🐍 Enable Python code execution (supported only in external mode)
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and migration guide
 
 **New to this setup?** Start with [OVERVIEW.md](docs/OVERVIEW.md) for a visual guide.
 
 **Switching modes?** Read [MODE-MIGRATION.md](docs/MODE-MIGRATION.md) first to avoid data loss!
+
+**Want Python support?** Check [PYTHON-SETUP.md](docs/PYTHON-SETUP.md) for setup instructions!
 
 ## 🌟 Overview
 

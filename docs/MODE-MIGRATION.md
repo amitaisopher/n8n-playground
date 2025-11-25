@@ -5,7 +5,7 @@ This guide helps you safely switch between different n8n modes (internal, extern
 ## 🎯 Overview
 
 n8n supports three operational modes with different database requirements:
-- **Internal Mode**: Single container with embedded task runners
+- **Internal Mode**: Single container with embedded task runners (see [PYTHON-SETUP.md](PYTHON-SETUP.md) for Python support) **Internal Mode**: Single container with embedded task runners
 - **External Mode**: Separate task runner container for enhanced security
 - **Queue Mode**: Distributed execution with Redis queue and worker processes
 

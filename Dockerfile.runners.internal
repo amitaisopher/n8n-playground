@@ -10,14 +10,19 @@ RUN apk add --update --no-cache \
     build-base \
     && ln -sf python3 /usr/bin/python
 
-# Install Python packages
-RUN pip3 install --no-cache-dir --break-system-packages \
+# Create Python virtual environment for n8n Python runner
+# n8n expects the venv at: /usr/local/lib/node_modules/n8n/pyenv/
+RUN python3 -m venv /usr/local/lib/node_modules/n8n/pyenv
+
+# Activate venv and install Python packages
+RUN /usr/local/lib/node_modules/n8n/pyenv/bin/pip install --no-cache-dir \
     httpx \
     beautifulsoup4 \
     lxml \
     openpyxl \
     python-dateutil \
-    pytz
+    pytz \
+    requests
 
 # Install Node.js packages globally
 RUN npm install -g \
@@ -27,6 +32,9 @@ RUN npm install -g \
     uuid \
     csv-parse \
     csv-stringify
+
+# Fix permissions for node user
+RUN chown -R node:node /usr/local/lib/node_modules/n8n/pyenv
 
 USER node
 
