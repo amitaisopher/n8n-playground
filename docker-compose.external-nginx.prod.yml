@@ -1,0 +1,97 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: n8n-nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - n8n-network
+    depends_on:
+      - n8n
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-external-nginx-prod
+    restart: unless-stopped
+    env_file:
+      - .env.external.production
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  task-runners:
+    image: n8nio/runners:latest
+    container_name: n8n-runners-external-nginx-prod
+    restart: unless-stopped
+    env_file:
+      - .env.external.production
+    networks:
+      - n8n-network
+    depends_on:
+      - n8n
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres-external-nginx-prod
+    restart: unless-stopped
+    env_file:
+      - .env.external.production
+    environment:
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_prod}
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_prod}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-change_me_in_production}
+    volumes:
+      - ./data/postgres-external:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  n8n-network:
+    driver: bridge

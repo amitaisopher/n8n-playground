@@ -1,0 +1,63 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: n8n-nginx-dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - n8n-network
+    depends_on:
+      - n8n
+
+  n8n:
+    image: n8nio/n8n:1.121.2
+    container_name: n8n-external-nginx-dev
+    restart: unless-stopped
+    env_file:
+      - .env.external.development
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  task-runners:
+    image: n8nio/runners:1.121.2
+    container_name: n8n-runners-external-nginx-dev
+    restart: unless-stopped
+    env_file:
+      - .env.external.development
+    networks:
+      - n8n-network
+    depends_on:
+      - n8n
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres-external-nginx-dev
+    restart: unless-stopped
+    env_file:
+      - .env.external.development
+    environment:
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_dev}
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_dev}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-n8n_dev_password}
+    volumes:
+      - ./data/postgres-external:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  n8n-network:
+    driver: bridge
