@@ -7,6 +7,7 @@ services:
       - .env.external.development
     ports:
       - "5678:5678"
+    user: "1000:1000" 
     volumes:
       - ./data/n8n:/home/node/.n8n
     networks:
@@ -16,7 +17,10 @@ services:
         condition: service_healthy
 
   task-runners:
-    image: n8nio/runners:1.121.2
+    build:
+      context: .
+      dockerfile: Dockerfile.runners.external
+    image: custom-n8n-runners:1.121.2
     container_name: n8n-runners-external-dev
     restart: unless-stopped
     env_file:
@@ -32,10 +36,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env.external.development
-    environment:
-      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n_dev}
-      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_dev}
-      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-n8n_dev_password}
     ports:
       - "5432:5432"
     volumes:
